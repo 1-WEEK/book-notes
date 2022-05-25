@@ -11,11 +11,11 @@ let bucket = new WeakMap();
 let obj = new Proxy(
   { text: 123 },
   {
-    get: function (target, key) {
+    get(target, key) {
       track(target, key);
       return target[key];
     },
-    set: function (target, key, newVal) {
+    set(target, key, newVal) {
       target[key] = newVal;
       trigger(target, key);
     },
@@ -29,7 +29,7 @@ function track(target, key) {
     bucket.set(target, (depsMap = new Map()));
   }
   let deps = depsMap.get(key);
-  if (deps) {
+  if (!deps) {
     depsMap.set(key, (deps = new Set()));
   }
   deps.add(activeEffect);
