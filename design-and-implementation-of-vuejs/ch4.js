@@ -5,21 +5,31 @@ function callEffect(effect) {
   effect();
 }
 
-let bucket = new Set();
+let bucket = new WeakMap();
 
 let obj = new Proxy(
   { text: 123 },
   {
     get: function (target, key) {
-      if (activeEffect) {
-        bucket.add(activeEffect);
+      if (!activeEffect) return target[key];
+      let depsMap = bucket.get(target);
+      if (!depsMap) {
+        bucket.set(target, (depsMap = new Map()));
       }
+      let deps = depsMap.get(key);
+      if (deps) {
+        depsMap.set(key, (deps = new Set()));
+      }
+      deps.add(activeEffect);
       return target[key];
     },
     set: function (target, key, newVal) {
       target[key] = newVal;
       bucket.forEach((f) => f());
-      return true;
+      const depsMap = bucket.get(target);
+      if (!depsMap) return;
+      const deps = depsMap.get(key);
+      if (deps) deps.forEach((f) => f());
     },
   }
 );
