@@ -1,14 +1,17 @@
-let bucket = new Set();
+let activeEffect;
 
-function Effect() {
-  document.body.innerText = obj.text;
-};
+function callEffect(effect) {
+  activeEffect = effect;
+  effect();
+}
+
+let bucket = new Set();
 
 let obj = new Proxy(
   { text: 123 },
   {
     get: function (target, key) {
-      if (Effect) {
+      if (activeEffect) {
         bucket.add(activeEffect);
       }
       return target[key];
@@ -21,7 +24,9 @@ let obj = new Proxy(
   }
 );
 
-Effect()
+callEffect(() => {
+  document.body.innerText = obj.text;
+});
 
 setTimeout(() => {
   obj.text = "eqpiruqpoiewu";
