@@ -5,34 +5,41 @@ function callEffect(effect) {
   effect();
 }
 
+// 防止 target 无法被 GC 回收
 let bucket = new WeakMap();
 
 let obj = new Proxy(
   { text: 123 },
   {
     get: function (target, key) {
-      if (!activeEffect) return target[key];
-      let depsMap = bucket.get(target);
-      if (!depsMap) {
-        bucket.set(target, (depsMap = new Map()));
-      }
-      let deps = depsMap.get(key);
-      if (deps) {
-        depsMap.set(key, (deps = new Set()));
-      }
-      deps.add(activeEffect);
+      track(target, key);
       return target[key];
     },
     set: function (target, key, newVal) {
       target[key] = newVal;
-      bucket.forEach((f) => f());
-      const depsMap = bucket.get(target);
-      if (!depsMap) return;
-      const deps = depsMap.get(key);
-      if (deps) deps.forEach((f) => f());
+      trigger(target, key);
     },
   }
 );
+
+function track(target, key) {
+  if (!activeEffect) return target[key];
+  let depsMap = bucket.get(target);
+  if (!depsMap) {
+    bucket.set(target, (depsMap = new Map()));
+  }
+  let deps = depsMap.get(key);
+  if (deps) {
+    depsMap.set(key, (deps = new Set()));
+  }
+  deps.add(activeEffect);
+}
+function trigger(target, key) {
+  const depsMap = bucket.get(target);
+  if (!depsMap) return;
+  const deps = depsMap.get(key);
+  if (deps) deps.forEach((f) => f());
+}
 
 callEffect(() => {
   document.body.innerText = obj.text;
