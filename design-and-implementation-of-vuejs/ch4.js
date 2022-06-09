@@ -8,7 +8,7 @@ function cleanup(effect) {
   effect.deps.length = 0;
 }
 
-function callEffect(fn) {
+function callEffect(fn, options) {
   const effect = () => {
     cleanup(effect);
     activeEffect = effect;
@@ -18,6 +18,7 @@ function callEffect(fn) {
     activeEffect = effectStack[effectStack.length - 1];
   };
   effect.deps = [];
+  effect.options = options;
   effect();
 }
 
@@ -25,7 +26,7 @@ function callEffect(fn) {
 let bucket = new WeakMap();
 
 let obj = new Proxy(
-  { text: 123, ok: true },
+  { text: 123, ok: 10 },
   {
     get(target, key) {
       track(target, key);
@@ -37,7 +38,7 @@ let obj = new Proxy(
       // > The set() method should return a boolean value.
       // see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy/Proxy/set#return_value
       return true;
-    },
+    }
   }
 );
 
@@ -64,13 +65,62 @@ function trigger(target, key) {
   // NOTE: 避免无限循环
   const effectsToRun = new Set(deps);
   effectsToRun.forEach((f) => {
-    if (f !== activeEffect) f();
+    if (f === activeEffect) return;
+
+    if (f.options?.scheduler) f.options.scheduler(f);
+    else f();
   });
 }
 
-callEffect(() => {
-  console.log("render11111");
-  document.body.innerText += obj.ok;
-  obj.ok = "123";
-});
+const jobQueue = new Set();
 
+let isFlushing = false;
+function flushJob() {
+  if (isFlushing) return;
+
+  isFlushing = true;
+
+  Promise.resolve()
+    .then((_) => {
+      jobQueue.forEach((fn) => fn());
+    })
+    .finally((_) => (isFlushing = false));
+}
+
+callEffect(
+  () => {
+    console.log("render11111", obj.ok);
+    document.body.innerText = obj.ok;
+  },
+  {
+    scheduler: function (fn) {
+      jobQueue.add(fn);
+      flushJob();
+    }
+  }
+);
+
+obj.ok++;
+obj.ok++;
+obj.ok++;
+console.log("14120349871");
+obj.ok++;
+obj.ok++;
+obj.ok++;
+obj.ok++;
+obj.ok++;
+console.log("!!!");
+
+// callEffect(
+//   () => {
+//     console.log("render11111");
+//     document.body.innerText += obj.ok;
+//   },
+//   {
+//     scheduler: function (fn) {
+//       Promise.reject().then(fn);
+//     },
+//   }
+// );
+// obj.ok = 123123123
+// console.log('1231231231')
