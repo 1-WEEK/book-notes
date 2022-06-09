@@ -1,19 +1,23 @@
 let activeEffect;
+const effectStack = [];
 
 function cleanup(effect) {
-  effect.deps.forEach(deps=>{
-    deps.delete(effect)
-  })
-  effect.deps.length = 0
+  effect.deps.forEach((deps) => {
+    deps.delete(effect);
+  });
+  effect.deps.length = 0;
 }
 
 function callEffect(fn) {
   const effect = () => {
-    cleanup(effect)
+    cleanup(effect);
     activeEffect = effect;
+    effectStack.push(effect);
     fn();
+    effectStack.pop(effect);
+    activeEffect = effectStack[effectStack.length - 1];
   };
-  effect.deps = []
+  effect.deps = [];
   effect();
 }
 
@@ -32,7 +36,7 @@ let obj = new Proxy(
       trigger(target, key);
       // > The set() method should return a boolean value.
       // see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy/Proxy/set#return_value
-      return true
+      return true;
     },
   }
 );
@@ -56,25 +60,21 @@ function trigger(target, key) {
   const depsMap = bucket.get(target);
   if (!depsMap) return;
   const deps = depsMap.get(key);
-  if (!deps) return
+  if (!deps) return;
   // NOTE: 避免无限循环
-  const effectsToRun = new Set(deps)
+  const effectsToRun = new Set(deps);
   effectsToRun.forEach((f) => f());
 }
 
 callEffect(() => {
-  console.log('render')
-  document.body.innerText = obj.ok? obj.text: "it's not ok";
+  console.log("render11111");
+  callEffect(() => {
+    console.log("render22222");
+    document.body.innerText += obj.ok + obj.text;
+  });
+  document.body.innerText += obj.ok;
 });
 
 setTimeout(() => {
-  obj.text = "eqpiruqpoiewu";
+  obj.ok = "eqpiruqpoiewu";
 }, 2000);
-
-setTimeout(() => {
-  obj.ok = false;
-}, 3000);
-
-setTimeout(() => {
-  obj.text = "123123";
-}, 4000);
