@@ -63,18 +63,14 @@ function trigger(target, key) {
   if (!deps) return;
   // NOTE: 避免无限循环
   const effectsToRun = new Set(deps);
-  effectsToRun.forEach((f) => f());
+  effectsToRun.forEach((f) => {
+    if (f !== activeEffect) f();
+  });
 }
 
 callEffect(() => {
   console.log("render11111");
-  callEffect(() => {
-    console.log("render22222");
-    document.body.innerText += obj.ok + obj.text;
-  });
   document.body.innerText += obj.ok;
+  obj.ok = "123";
 });
 
-setTimeout(() => {
-  obj.ok = "eqpiruqpoiewu";
-}, 2000);
