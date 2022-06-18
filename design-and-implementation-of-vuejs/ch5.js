@@ -29,16 +29,15 @@ function callEffect(fn, options = {}) {
 // 防止 target 无法被 GC 回收
 let bucket = new WeakMap();
 const ITERATE_KEY = Symbol();
+const ORIGIN = Symbol();
 
-let obj = new Proxy(
-  {
-    text: 123,
-    get bar() {
-      return this.text;
-    }
-  },
-  {
+function reactive(o) {
+  return new Proxy(o, {
     get(target, key, receiver) {
+      if (key === ORIGIN) {
+        return target;
+      }
+
       track(target, key);
       // 避免 getter 访问原对象导致无法正确收集依赖
       return Reflect.get(target, key, receiver);
@@ -55,9 +54,21 @@ let obj = new Proxy(
       const type = Object.prototype.hasOwnProperty.call(target, key)
         ? "SET"
         : "ADD";
-      console.log(type, key, target.a);
+      const oldVal = target[key];
       const result = Reflect.set(target, key, newVal, receiver);
-      trigger(target, key, type);
+
+      console.log(
+        oldVal,
+        newVal,
+        receiver[ORIGIN],
+        target,
+        receiver[ORIGIN] === target
+      );
+      if (target === receiver[ORIGIN]) {
+        if (oldVal !== newVal && (oldVal === oldVal || newVal === newVal)) {
+          trigger(target, key, type);
+        }
+      }
       // > The set() method should return a boolean value.
       // see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy/Proxy/set#return_value
       return result;
@@ -70,8 +81,15 @@ let obj = new Proxy(
       }
       return result;
     }
+  });
+}
+
+let obj = reactive({
+  text: 123,
+  get bar() {
+    return this.text;
   }
-);
+});
 
 function track(target, key) {
   if (!activeEffect) return target[key];
@@ -97,7 +115,7 @@ function trigger(target, key, type) {
   // NOTE: 避免无限循环
   const effectsToRun = new Set(deps);
   if (type === "ADD" || type === "DELETE") {
-    keyDeps.forEach((f) => effectsToRun.add(f));
+    keyDeps?.forEach?.((f) => effectsToRun.add(f));
   }
   effectsToRun.forEach((f) => {
     if (f === activeEffect) return;
@@ -113,13 +131,14 @@ callEffect(() => {
   }
 });
 
+obj.text = 123;
+
+const child = reactive({});
+const parent = reactive({ bar: 1, foo: 321 });
+Object.setPrototypeOf(child, parent);
+
 callEffect(() => {
-  console.log(JSON.stringify(obj));
-  for (const key in obj) {
-    console.log(key);
-  }
+  console.log(child.bar);
 });
 
-obj.aqweqwe = 888;
-
-delete obj.bar;
+child.bar++;
