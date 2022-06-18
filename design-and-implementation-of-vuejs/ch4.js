@@ -135,7 +135,7 @@ function traverse(target, seen = new Set()) {
   return target;
 }
 
-function watch(source, cb) {
+function watch(source, cb, options = {}) {
   let getter;
   if (typeof source === "function") {
     getter = source;
@@ -143,30 +143,46 @@ function watch(source, cb) {
 
   let newVal;
   let oldVal;
+  const job = () => {
+    newVal = fn();
+    cb(newVal, oldVal);
+    oldVal = newVal;
+  };
   const fn = callEffect(() => getter(), {
     lazy: true,
     scheduler() {
-      newVal = fn();
-      cb(newVal, oldVal);
-      oldVal = newVal;
+      if (options.flush === "post") {
+        Promise.resolve().then(job);
+      } else {
+        job();
+      }
     }
   });
-  oldVal = fn();
+  if (options.immediate) {
+    job();
+  } else oldVal = fn();
 }
 
 watch(
   () => obj.ok,
   (newVal, oldVal) => {
     console.log("changed", newVal, oldVal);
+  },
+  {
+    immediate: true,
+    flush: "post"
   }
 );
 
 setTimeout(() => {
   obj.ok++;
+  console.log("延迟");
   // obj.ok++;
   // obj.ok++;
   // obj.ok++;
 }, 2000);
+
+console.log("正常");
 
 setTimeout(() => {
   obj.ok = 20;
