@@ -13,12 +13,16 @@ function callEffect(fn, options) {
     cleanup(effect);
     activeEffect = effect;
     effectStack.push(effect);
-    fn();
+    const result = fn();
     effectStack.pop(effect);
     activeEffect = effectStack[effectStack.length - 1];
+    return result;
   };
   effect.deps = [];
   effect.options = options;
+  if (options.lazy) {
+    return effect;
+  }
   effect();
 }
 
@@ -88,29 +92,31 @@ function flushJob() {
     .finally((_) => (isFlushing = false));
 }
 
-callEffect(
-  () => {
-    console.log("render11111", obj.ok);
-    document.body.innerText = obj.ok;
-  },
-  {
-    scheduler: function (fn) {
-      jobQueue.add(fn);
-      flushJob();
+function computed(getter) {
+  const fn = callEffect(getter, {
+    lazy: true,
+    // 防止 trigger 触发 effect
+    scheduler() {}
+  });
+  const obj = {
+    get value() {
+      return fn();
     }
-  }
-);
+  };
+  return obj;
+}
 
+const sum = computed(() => {
+  console.log("ahaha");
+  return obj.ok + obj.text;
+});
+
+// console.log(sum);
+console.log(sum.value);
 obj.ok++;
-obj.ok++;
-obj.ok++;
-console.log("14120349871");
-obj.ok++;
-obj.ok++;
-obj.ok++;
-obj.ok++;
-obj.ok++;
-console.log("!!!");
+console.log(sum.value);
+obj.text++;
+console.log(sum.value);
 
 // callEffect(
 //   () => {
