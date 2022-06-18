@@ -119,41 +119,64 @@ function computed(getter) {
   return obj;
 }
 
-const sum = computed(() => {
-  console.log("ahaha");
-  return obj.ok + obj.text;
-});
+function traverse(target, seen = new Set()) {
+  if (typeof target !== "object" || target === null || seen.has(target)) {
+    return;
+  }
+  seen.add(target);
 
-callEffect(
-  () => {
-    document.body.innerText = sum.value;
-  },
-  {
-    scheduler(fn) {
-      jobQueue.add(fn);
-      flushJob();
+  for (const key in target) {
+    if (Object.hasOwnProperty.call(target, key)) {
+      const element = target[key];
+      traverse(element, seen);
     }
+  }
+
+  return target;
+}
+
+function watch(source, cb) {
+  let getter;
+  if (typeof source === "function") {
+    getter = source;
+  } else getter = () => traverse(source);
+
+  let newVal;
+  let oldVal;
+  const fn = callEffect(() => getter(), {
+    lazy: true,
+    scheduler() {
+      newVal = fn();
+      cb(newVal, oldVal);
+      oldVal = newVal;
+    }
+  });
+  oldVal = fn();
+}
+
+watch(
+  () => obj.ok,
+  (newVal, oldVal) => {
+    console.log("changed", newVal, oldVal);
   }
 );
 
 setTimeout(() => {
   obj.ok++;
-  obj.ok++;
-  obj.ok++;
-  obj.ok++;
+  // obj.ok++;
+  // obj.ok++;
+  // obj.ok++;
 }, 2000);
 
 setTimeout(() => {
-  obj.text++;
-  obj.text++;
-  obj.text++;
-  obj.text++;
-  obj.text++;
-  obj.text++;
-  obj.text++;
+  obj.ok = 20;
+  // obj.text++;
+  // obj.text++;
+  // obj.text++;
+  // obj.text++;
+  // obj.text++;
+  // obj.text++;
 }, 4000);
-
-console.log(sum.value);
 
 // callEffect(
 //   () => {
