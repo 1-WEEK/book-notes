@@ -93,14 +93,23 @@ function flushJob() {
 }
 
 function computed(getter) {
+  let result;
+  let dirty = true;
   const fn = callEffect(getter, {
     lazy: true,
     // 防止 trigger 触发 effect
-    scheduler() {}
+    scheduler() {
+      // 说明依赖值有变化，需要重新计算
+      dirty = true;
+    }
   });
   const obj = {
     get value() {
-      return fn();
+      if (dirty) {
+        result = fn();
+        dirty = false;
+      }
+      return result;
     }
   };
   return obj;
@@ -114,6 +123,7 @@ const sum = computed(() => {
 // console.log(sum);
 console.log(sum.value);
 obj.ok++;
+console.log(sum.value);
 console.log(sum.value);
 obj.text++;
 console.log(sum.value);
