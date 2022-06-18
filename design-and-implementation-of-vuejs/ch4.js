@@ -72,6 +72,7 @@ function trigger(target, key) {
   });
 }
 
+// 存放最后需要调用的 effects
 const jobQueue = new Set();
 
 let isFlushing = false;
