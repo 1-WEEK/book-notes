@@ -28,6 +28,7 @@ function callEffect(fn, options = {}) {
 
 // 防止 target 无法被 GC 回收
 let bucket = new WeakMap();
+const ITERATE_KEY = Symbol();
 
 let obj = new Proxy(
   {
@@ -39,16 +40,35 @@ let obj = new Proxy(
   {
     get(target, key, receiver) {
       track(target, key);
-      console.log(target, key);
-			// 避免 getter 访问原对象导致无法正确收集依赖
+      // 避免 getter 访问原对象导致无法正确收集依赖
       return Reflect.get(target, key, receiver);
     },
-    set(target, key, newVal) {
-      target[key] = newVal;
-      trigger(target, key);
+    has(target, key) {
+      track(target, key);
+      return Reflect.has(target, key);
+    },
+    ownKeys(target) {
+      track(target, ITERATE_KEY);
+      return Reflect.ownKeys(target);
+    },
+    set(target, key, newVal, receiver) {
+      const type = Object.prototype.hasOwnProperty.call(target, key)
+        ? "SET"
+        : "ADD";
+      console.log(type, key, target.a);
+      const result = Reflect.set(target, key, newVal, receiver);
+      trigger(target, key, type);
       // > The set() method should return a boolean value.
       // see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy/Proxy/set#return_value
-      return true;
+      return result;
+    },
+    deleteProperty(target, key) {
+      const hasKey = Object.prototype.hasOwnProperty.call(target, key);
+      const result = Reflect.deleteProperty(target, key);
+      if (result && hasKey) {
+        trigger(target, key, "DELETE");
+      }
+      return result;
     }
   }
 );
@@ -68,13 +88,17 @@ function track(target, key) {
   // 副作用函数收集自己所访问的 property
   activeEffect.deps.push(deps);
 }
-function trigger(target, key) {
+function trigger(target, key, type) {
   const depsMap = bucket.get(target);
   if (!depsMap) return;
   const deps = depsMap.get(key);
-  if (!deps) return;
+  const keyDeps = depsMap.get(ITERATE_KEY);
+  if (!deps && !keyDeps) return;
   // NOTE: 避免无限循环
   const effectsToRun = new Set(deps);
+  if (type === "ADD" || type === "DELETE") {
+    keyDeps.forEach((f) => effectsToRun.add(f));
+  }
   effectsToRun.forEach((f) => {
     if (f === activeEffect) return;
 
@@ -83,103 +107,19 @@ function trigger(target, key) {
   });
 }
 
-
 callEffect(() => {
-  console.log(obj.bar);
+  if ("text" in obj) {
+    console.log("111");
+  }
 });
 
-obj.text++;
-
-// 存放最后需要调用的 effects
-const jobQueue = new Set();
-
-let isFlushing = false;
-function flushJob() {
-  if (isFlushing) return;
-
-  isFlushing = true;
-
-  Promise.resolve()
-    .then((_) => {
-      jobQueue.forEach((fn) => fn());
-    })
-    .finally((_) => (isFlushing = false));
-}
-
-function computed(getter) {
-  let result;
-  let dirty = true;
-  const lazyCall = callEffect(getter, {
-    lazy: true,
-    // 防止 trigger 触发 effect
-    scheduler() {
-      // 说明依赖值有变化，需要重新计算
-      if (!dirty) {
-        dirty = true;
-        trigger(obj, "value");
-      }
-    }
-  });
-  const obj = {
-    get value() {
-      if (dirty) {
-        result = lazyCall();
-        dirty = false;
-        track(obj, "value");
-      }
-      return result;
-    }
-  };
-  return obj;
-}
-
-function traverse(target, seen = new Set()) {
-  if (typeof target !== "object" || target === null || seen.has(target)) {
-    return;
+callEffect(() => {
+  console.log(JSON.stringify(obj));
+  for (const key in obj) {
+    console.log(key);
   }
-  seen.add(target);
+});
 
-  for (const key in target) {
-    if (Object.hasOwnProperty.call(target, key)) {
-      const element = target[key];
-      traverse(element, seen);
-    }
-  }
+obj.aqweqwe = 888;
 
-  return target;
-}
-
-function watch(source, cb, options = {}) {
-  let getter;
-  if (typeof source === "function") {
-    getter = source;
-  } else getter = () => traverse(source);
-
-  let newVal;
-  let oldVal;
-
-  let cleanup;
-  function onInvalidate(fn) {
-    cleanup = fn;
-  }
-
-  const job = () => {
-    newVal = lazyCall();
-    if (cleanup) cleanup();
-    cb(newVal, oldVal, onInvalidate);
-    oldVal = newVal;
-  };
-  const lazyCall = callEffect(() => getter(), {
-    lazy: true,
-    scheduler() {
-      if (options.flush === "post") {
-        Promise.resolve().then(job);
-      } else {
-        job();
-      }
-    }
-  });
-  if (options.immediate) {
-    job();
-  } else oldVal = lazyCall();
-}
+delete obj.bar;
