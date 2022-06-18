@@ -8,7 +8,7 @@ function cleanup(effect) {
   effect.deps.length = 0;
 }
 
-function callEffect(fn, options) {
+function callEffect(fn, options = {}) {
   const effect = () => {
     cleanup(effect);
     activeEffect = effect;
@@ -100,7 +100,10 @@ function computed(getter) {
     // 防止 trigger 触发 effect
     scheduler() {
       // 说明依赖值有变化，需要重新计算
-      dirty = true;
+      if (!dirty) {
+        dirty = true;
+        trigger(obj, "value");
+      }
     }
   });
   const obj = {
@@ -108,6 +111,7 @@ function computed(getter) {
       if (dirty) {
         result = fn();
         dirty = false;
+        track(obj, "value");
       }
       return result;
     }
@@ -120,12 +124,35 @@ const sum = computed(() => {
   return obj.ok + obj.text;
 });
 
-// console.log(sum);
-console.log(sum.value);
-obj.ok++;
-console.log(sum.value);
-console.log(sum.value);
-obj.text++;
+callEffect(
+  () => {
+    document.body.innerText = sum.value;
+  },
+  {
+    scheduler(fn) {
+      jobQueue.add(fn);
+      flushJob();
+    }
+  }
+);
+
+setTimeout(() => {
+  obj.ok++;
+  obj.ok++;
+  obj.ok++;
+  obj.ok++;
+}, 2000);
+
+setTimeout(() => {
+  obj.text++;
+  obj.text++;
+  obj.text++;
+  obj.text++;
+  obj.text++;
+  obj.text++;
+  obj.text++;
+}, 4000);
+
 console.log(sum.value);
 
 // callEffect(
