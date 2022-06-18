@@ -42,7 +42,7 @@ let obj = new Proxy(
       // > The set() method should return a boolean value.
       // see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy/Proxy/set#return_value
       return true;
-    }
+    },
   }
 );
 
@@ -95,7 +95,7 @@ function flushJob() {
 function computed(getter) {
   let result;
   let dirty = true;
-  const fn = callEffect(getter, {
+  const lazyCall = callEffect(getter, {
     lazy: true,
     // 防止 trigger 触发 effect
     scheduler() {
@@ -104,17 +104,17 @@ function computed(getter) {
         dirty = true;
         trigger(obj, "value");
       }
-    }
+    },
   });
   const obj = {
     get value() {
       if (dirty) {
-        result = fn();
+        result = lazyCall();
         dirty = false;
         track(obj, "value");
       }
       return result;
-    }
+    },
   };
   return obj;
 }
@@ -143,12 +143,19 @@ function watch(source, cb, options = {}) {
 
   let newVal;
   let oldVal;
+
+  let cleanup;
+  function onInvalidate(fn) {
+    cleanup = fn;
+  }
+
   const job = () => {
-    newVal = fn();
-    cb(newVal, oldVal);
+    newVal = lazyCall();
+    if (cleanup) cleanup();
+    cb(newVal, oldVal, onInvalidate);
     oldVal = newVal;
   };
-  const fn = callEffect(() => getter(), {
+  const lazyCall = callEffect(() => getter(), {
     lazy: true,
     scheduler() {
       if (options.flush === "post") {
@@ -156,21 +163,24 @@ function watch(source, cb, options = {}) {
       } else {
         job();
       }
-    }
+    },
   });
   if (options.immediate) {
     job();
-  } else oldVal = fn();
+  } else oldVal = lazyCall();
 }
 
 watch(
   () => obj.ok,
-  (newVal, oldVal) => {
+  (newVal, oldVal, onInvalidate) => {
+    onInvalidate(()=>{
+      console.log('too late')
+    })
     console.log("changed", newVal, oldVal);
   },
   {
     immediate: true,
-    flush: "post"
+    flush: "post",
   }
 );
 
