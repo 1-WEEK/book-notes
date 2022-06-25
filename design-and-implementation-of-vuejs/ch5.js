@@ -73,7 +73,12 @@ function reactive(o, isShallow = false, isReadonly = false) {
         console.warn(`property ${key} is readonly`);
         return true;
       }
-      const type = Object.prototype.hasOwnProperty.call(target, key)
+      const isArray = Array.isArray(target);
+      const type = isArray
+        ? Number(key) >= target.length
+          ? "ADD"
+          : "SET"
+        : Object.prototype.hasOwnProperty.call(target, key)
         ? "SET"
         : "ADD";
       const oldVal = target[key];
@@ -103,14 +108,8 @@ function reactive(o, isShallow = false, isReadonly = false) {
   });
 }
 
-let obj = reactive({
-  text: 123,
-  get bar() {
-    return this.text;
-  },
-});
-
 function track(target, key) {
+  console.log("track", key);
   if (!activeEffect) return target[key];
   let depsMap = bucket.get(target);
   if (!depsMap) {
@@ -130,9 +129,15 @@ function trigger(target, key, type) {
   if (!depsMap) return;
   const deps = depsMap.get(key);
   const keyDeps = depsMap.get(ITERATE_KEY);
-  if (!deps && !keyDeps) return;
+
   // NOTE: 避免无限循环
   const effectsToRun = new Set(deps);
+
+  if (type === "ADD" && Array.isArray(target)) {
+    const lenghtDeps = depsMap.get("length");
+    lenghtDeps?.forEach?.((f) => effectsToRun.add(f));
+  }
+
   if (type === "ADD" || type === "DELETE") {
     keyDeps?.forEach?.((f) => effectsToRun.add(f));
   }
@@ -144,24 +149,13 @@ function trigger(target, key, type) {
   });
 }
 
-callEffect(() => {
-  if ("text" in obj) {
-    console.log("111");
-  }
-});
-
-obj.text = 123;
-
-const readonly = (obj) => reactive(obj, false, true);
-const shallowReadonly = (obj) => reactive(obj, true, true);
-
-const parent = shallowReadonly({ bar: 1, foo: { a: 222, b: 444 } });
+const arr = reactive([{ a: 1 }, { b: 90 }]);
 
 callEffect(() => {
-  console.log(parent.foo.a);
+  console.log("长度变了", arr.length);
 });
 
-parent.foo.a = 888;
-parent.bar = 888;
+arr.push(123);
 
-console.log(parent)
+arr[5] = 123;
+arr[2] = 9898;
