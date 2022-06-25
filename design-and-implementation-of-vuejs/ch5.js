@@ -1,4 +1,5 @@
 let activeEffect;
+let skipTrack = false;
 const effectStack = [];
 
 function cleanup(effect) {
@@ -44,6 +45,15 @@ const arrayInstrumentations = {};
     if (result === false) {
       result = originMethod.apply(this[ORIGIN], args);
     }
+    return result;
+  };
+});
+["push", "pop", "shift", "unshift", "splice"].forEach((method) => {
+  arrayInstrumentations[method] = function (...args) {
+    const originMethod = Array.prototype[method];
+    skipTrack = true;
+    let result = originMethod.apply(this, args);
+    skipTrack = false;
     return result;
   };
 });
@@ -130,7 +140,7 @@ function reactive(o, isShallow = false, isReadonly = false) {
 
 function track(target, key) {
   // console.log("track", key);
-  if (!activeEffect) return target[key];
+  if (!activeEffect || skipTrack) return target[key];
   let depsMap = bucket.get(target);
   if (!depsMap) {
     bucket.set(target, (depsMap = new Map()));
@@ -186,6 +196,15 @@ const arr = reactive([obj, { b: 90 }, 3, 4, 6]);
 //   console.log("hhhh", arr[4]);
 // });
 
-console.log(arr.includes(obj));
-console.log(arr.indexOf(arr[0]));
-console.log(arr.lastIndexOf(obj));
+// console.log(arr.includes(obj));
+// console.log(arr.indexOf(arr[0]));
+// console.log(arr.lastIndexOf(obj));
+
+callEffect(() => {
+  arr.push(1);
+});
+callEffect(() => {
+  arr.push(1);
+});
+
+console.log(arr);
