@@ -86,7 +86,7 @@ function reactive(o, isShallow = false, isReadonly = false) {
 
       if (target === receiver[ORIGIN]) {
         if (oldVal !== newVal && (oldVal === oldVal || newVal === newVal)) {
-          trigger(target, key, type);
+          trigger(target, key, type, newVal);
         }
       }
       // > The set() method should return a boolean value.
@@ -124,7 +124,7 @@ function track(target, key) {
   // 副作用函数收集自己所访问的 property
   activeEffect.deps.push(deps);
 }
-function trigger(target, key, type) {
+function trigger(target, key, type, newVal) {
   const depsMap = bucket.get(target);
   if (!depsMap) return;
   const deps = depsMap.get(key);
@@ -133,7 +133,16 @@ function trigger(target, key, type) {
   // NOTE: 避免无限循环
   const effectsToRun = new Set(deps);
 
-  if (type === "ADD" && Array.isArray(target)) {
+  if (Array.isArray(target) && key === "length") {
+    console.log(key, newVal)
+    depsMap.forEach((indexDeps, indexKey) => {
+      if (Number(indexKey) >= newVal) {
+        indexDeps.forEach((f) => effectsToRun.add(f));
+      }
+    });
+  }
+
+  if (Array.isArray(target) && type === "ADD") {
     const lenghtDeps = depsMap.get("length");
     lenghtDeps?.forEach?.((f) => effectsToRun.add(f));
   }
@@ -149,13 +158,16 @@ function trigger(target, key, type) {
   });
 }
 
-const arr = reactive([{ a: 1 }, { b: 90 }]);
+const arr = reactive([{ a: 1 }, { b: 90 }, 3, 4, 6]);
 
 callEffect(() => {
-  console.log("长度变了", arr.length);
+  // console.log("长度变了", arr.length);
+  console.log('hhhh', arr[4])
 });
 
-arr.push(123);
+// arr.push(123);
 
-arr[5] = 123;
-arr[2] = 9898;
+// arr[5] = 123;
+// arr[2] = 9898;
+
+arr.length = 1
