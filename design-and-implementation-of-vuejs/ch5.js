@@ -31,7 +31,8 @@ let bucket = new WeakMap();
 const ITERATE_KEY = Symbol();
 const ORIGIN = Symbol();
 
-function reactive(o) {
+const reactiveMap = new Map();
+function reactive(o, isShallow = false) {
   return new Proxy(o, {
     get(target, key, receiver) {
       if (key === ORIGIN) {
@@ -39,8 +40,20 @@ function reactive(o) {
       }
 
       track(target, key);
+
+      const property = Reflect.get(target, key, receiver);
+      if (isShallow) {
+        return property;
+      }
+      if (typeof property === "object" && property !== null) {
+        if (!reactiveMap.has(property)) {
+          reactiveMap.set(property, reactive(property));
+        }
+        return reactiveMap.get(property);
+      }
+
       // 避免 getter 访问原对象导致无法正确收集依赖
-      return Reflect.get(target, key, receiver);
+      return property;
     },
     has(target, key) {
       track(target, key);
@@ -57,13 +70,6 @@ function reactive(o) {
       const oldVal = target[key];
       const result = Reflect.set(target, key, newVal, receiver);
 
-      console.log(
-        oldVal,
-        newVal,
-        receiver[ORIGIN],
-        target,
-        receiver[ORIGIN] === target
-      );
       if (target === receiver[ORIGIN]) {
         if (oldVal !== newVal && (oldVal === oldVal || newVal === newVal)) {
           trigger(target, key, type);
@@ -80,7 +86,7 @@ function reactive(o) {
         trigger(target, key, "DELETE");
       }
       return result;
-    }
+    },
   });
 }
 
@@ -88,7 +94,7 @@ let obj = reactive({
   text: 123,
   get bar() {
     return this.text;
-  }
+  },
 });
 
 function track(target, key) {
@@ -133,12 +139,10 @@ callEffect(() => {
 
 obj.text = 123;
 
-const child = reactive({});
-const parent = reactive({ bar: 1, foo: 321 });
-Object.setPrototypeOf(child, parent);
+const parent = reactive({ bar: 1, foo: { a: 222, b: 444 } });
 
 callEffect(() => {
-  console.log(child.bar);
+  console.log(parent.foo.a);
 });
 
-child.bar++;
+parent.foo.a++;
