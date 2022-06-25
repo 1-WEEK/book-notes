@@ -32,14 +32,16 @@ const ITERATE_KEY = Symbol();
 const ORIGIN = Symbol();
 
 const reactiveMap = new Map();
-function reactive(o, isShallow = false) {
+function reactive(o, isShallow = false, isReadonly = false) {
   return new Proxy(o, {
     get(target, key, receiver) {
       if (key === ORIGIN) {
         return target;
       }
 
-      track(target, key);
+      if (!isReadonly) {
+        track(target, key);
+      }
 
       const property = Reflect.get(target, key, receiver);
       if (isShallow) {
@@ -47,7 +49,10 @@ function reactive(o, isShallow = false) {
       }
       if (typeof property === "object" && property !== null) {
         if (!reactiveMap.has(property)) {
-          reactiveMap.set(property, reactive(property));
+          reactiveMap.set(
+            property,
+            isReadonly ? readonly(property) : reactive(property)
+          );
         }
         return reactiveMap.get(property);
       }
@@ -64,6 +69,10 @@ function reactive(o, isShallow = false) {
       return Reflect.ownKeys(target);
     },
     set(target, key, newVal, receiver) {
+      if (isReadonly) {
+        console.warn(`property ${key} is readonly`);
+        return true;
+      }
       const type = Object.prototype.hasOwnProperty.call(target, key)
         ? "SET"
         : "ADD";
@@ -80,6 +89,10 @@ function reactive(o, isShallow = false) {
       return result;
     },
     deleteProperty(target, key) {
+      if (isReadonly) {
+        console.warn(`property ${key} is readonly`);
+        return true;
+      }
       const hasKey = Object.prototype.hasOwnProperty.call(target, key);
       const result = Reflect.deleteProperty(target, key);
       if (result && hasKey) {
@@ -139,10 +152,16 @@ callEffect(() => {
 
 obj.text = 123;
 
-const parent = reactive({ bar: 1, foo: { a: 222, b: 444 } });
+const readonly = (obj) => reactive(obj, false, true);
+const shallowReadonly = (obj) => reactive(obj, true, true);
+
+const parent = shallowReadonly({ bar: 1, foo: { a: 222, b: 444 } });
 
 callEffect(() => {
   console.log(parent.foo.a);
 });
 
-parent.foo.a++;
+parent.foo.a = 888;
+parent.bar = 888;
+
+console.log(parent)
