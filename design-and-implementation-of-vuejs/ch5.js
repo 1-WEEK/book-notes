@@ -58,7 +58,7 @@ const arrayInstrumentations = {};
   };
 });
 
-function reactive(o, isShallow = false, isReadonly = false) {
+function createReactive(o, isShallow = false, isReadonly = false) {
   return new Proxy(o, {
     get(target, key, receiver) {
       if (key === ORIGIN) {
@@ -78,13 +78,7 @@ function reactive(o, isShallow = false, isReadonly = false) {
         return property;
       }
       if (typeof property === "object" && property !== null) {
-        if (!reactiveMap.has(property)) {
-          reactiveMap.set(
-            property,
-            isReadonly ? readonly(property) : reactive(property)
-          );
-        }
-        return reactiveMap.get(property);
+        return isReadonly ? readonly(property) : reactive(property);
       }
 
       // 避免 getter 访问原对象导致无法正确收集依赖
@@ -136,6 +130,26 @@ function reactive(o, isShallow = false, isReadonly = false) {
       return result;
     },
   });
+}
+
+function reactive(obj) {
+  const existionProxy = reactiveMap.get(obj);
+  if (existionProxy) return existionProxy;
+
+  const proxy = createReactive(obj);
+  reactiveMap.set(obj, proxy);
+  return proxy;
+}
+function shallowReactive(o) {
+  return createReactive(o, true);
+}
+
+function readonly(o) {
+  return createReactive(o, false, true);
+}
+
+function shallowReadonly(o) {
+  return createReactive(o, true, true);
 }
 
 function track(target, key) {
