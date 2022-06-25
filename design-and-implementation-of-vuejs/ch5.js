@@ -39,7 +39,7 @@ function reactive(o, isShallow = false, isReadonly = false) {
         return target;
       }
 
-      if (!isReadonly) {
+      if (!isReadonly && typeof key !== 'symbol') {
         track(target, key);
       }
 
@@ -65,7 +65,7 @@ function reactive(o, isShallow = false, isReadonly = false) {
       return Reflect.has(target, key);
     },
     ownKeys(target) {
-      track(target, ITERATE_KEY);
+      track(target, Array.isArray(target) ? "length" : ITERATE_KEY);
       return Reflect.ownKeys(target);
     },
     set(target, key, newVal, receiver) {
@@ -134,7 +134,7 @@ function trigger(target, key, type, newVal) {
   const effectsToRun = new Set(deps);
 
   if (Array.isArray(target) && key === "length") {
-    console.log(key, newVal)
+    console.log(key, newVal);
     depsMap.forEach((indexDeps, indexKey) => {
       if (Number(indexKey) >= newVal) {
         indexDeps.forEach((f) => effectsToRun.add(f));
@@ -162,7 +162,7 @@ const arr = reactive([{ a: 1 }, { b: 90 }, 3, 4, 6]);
 
 callEffect(() => {
   // console.log("长度变了", arr.length);
-  console.log('hhhh', arr[4])
+  console.log("hhhh", arr[4]);
 });
 
 // arr.push(123);
@@ -170,4 +170,4 @@ callEffect(() => {
 // arr[5] = 123;
 // arr[2] = 9898;
 
-arr.length = 1
+arr.length = 1;
