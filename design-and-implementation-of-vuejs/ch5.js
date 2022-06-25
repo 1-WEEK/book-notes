@@ -32,6 +32,22 @@ const ITERATE_KEY = Symbol();
 const ORIGIN = Symbol();
 
 const reactiveMap = new Map();
+
+const arrayInstrumentations = {};
+["includes", "indexOf", "lastIndexOf"].forEach((method) => {
+  arrayInstrumentations[method] = function (...args) {
+    const originMethod = Array.prototype[method];
+    let result = originMethod.apply(this, args);
+    if (typeof result === "number" && result < 0) {
+      result = false;
+    }
+    if (result === false) {
+      result = originMethod.apply(this[ORIGIN], args);
+    }
+    return result;
+  };
+});
+
 function reactive(o, isShallow = false, isReadonly = false) {
   return new Proxy(o, {
     get(target, key, receiver) {
@@ -39,8 +55,12 @@ function reactive(o, isShallow = false, isReadonly = false) {
         return target;
       }
 
-      if (!isReadonly && typeof key !== 'symbol') {
+      if (!isReadonly && typeof key !== "symbol") {
         track(target, key);
+      }
+
+      if (Array.isArray(target) && arrayInstrumentations.hasOwnProperty(key)) {
+        return Reflect.get(arrayInstrumentations, key, receiver);
       }
 
       const property = Reflect.get(target, key, receiver);
@@ -109,7 +129,7 @@ function reactive(o, isShallow = false, isReadonly = false) {
 }
 
 function track(target, key) {
-  console.log("track", key);
+  // console.log("track", key);
   if (!activeEffect) return target[key];
   let depsMap = bucket.get(target);
   if (!depsMap) {
@@ -158,16 +178,14 @@ function trigger(target, key, type, newVal) {
   });
 }
 
-const arr = reactive([{ a: 1 }, { b: 90 }, 3, 4, 6]);
+const obj = { a: 1 };
+const arr = reactive([obj, { b: 90 }, 3, 4, 6]);
 
-callEffect(() => {
-  // console.log("长度变了", arr.length);
-  console.log("hhhh", arr[4]);
-});
+// callEffect(() => {
+//   // console.log("长度变了", arr.length);
+//   console.log("hhhh", arr[4]);
+// });
 
-// arr.push(123);
-
-// arr[5] = 123;
-// arr[2] = 9898;
-
-arr.length = 1;
+console.log(arr.includes(obj));
+console.log(arr.indexOf(arr[0]));
+console.log(arr.lastIndexOf(obj));
