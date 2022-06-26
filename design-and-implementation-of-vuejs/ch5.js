@@ -1,3 +1,18 @@
+const ITERATE_KEY = Symbol();
+const ORIGIN = Symbol();
+
+const utils = {
+  isSame(oldVal, newVal) {
+    return oldVal !== newVal || (oldVal !== oldVal && newVal !== newVal);
+  },
+  getOrigin(v) {
+    return v[ORIGIN] || v;
+  },
+  isReactive(v) {
+    return !!v[ORIGIN];
+  },
+};
+
 let activeEffect;
 let skipTrack = false;
 const effectStack = [];
@@ -29,9 +44,6 @@ function callEffect(fn, options = {}) {
 
 // 防止 target 无法被 GC 回收
 let bucket = new WeakMap();
-const ITERATE_KEY = Symbol();
-const ORIGIN = Symbol();
-
 const reactiveMap = new Map();
 
 const arrayInstrumentations = {};
@@ -106,10 +118,15 @@ function createReactive(o, isShallow = false, isReadonly = false) {
         ? "SET"
         : "ADD";
       const oldVal = target[key];
-      const result = Reflect.set(target, key, newVal, receiver);
+      const result = Reflect.set(
+        target,
+        key,
+        utils.getOrigin(newVal),
+        receiver
+      );
 
       if (target === receiver[ORIGIN]) {
-        if (oldVal !== newVal && (oldVal === oldVal || newVal === newVal)) {
+        if (!utils.isSame(newVal, oldVal)) {
           trigger(target, key, type, newVal);
         }
       }
@@ -133,12 +150,39 @@ function createReactive(o, isShallow = false, isReadonly = false) {
 }
 
 const mutableInstrumentations = {
+  get: function (key, isShallow = false) {
+    const target = this[ORIGIN];
+    let result;
+    const had = target.has(key);
+    if (!had) return;
+    track(target, key);
+    result = target.get(key);
+    if (typeof result === "object" && result !== null && !isShallow) {
+      result = reactive(result);
+    }
+    return result;
+  },
+  set: function (key, value) {
+    const target = this[ORIGIN];
+    const had = target.has(key);
+
+    const result = target.set(key, utils.getOrigin(value));
+    if (!had) {
+      trigger(target, key, "ADD");
+    } else {
+      const oldValue = target.get(key);
+      if (!utils.isSame(oldValue, value)) {
+        trigger(target, key, "SET");
+      }
+    }
+    return result;
+  },
   add: function (key) {
     const target = this[ORIGIN];
     let result;
     if (!target.has(key)) {
-      result = target.add(key);
-      trigger(target, key, "ADD");
+      result = target.add(utils.getOrigin(key));
+      trigger(target, key, "ADD", value);
     }
     return result;
   },
@@ -147,7 +191,7 @@ const mutableInstrumentations = {
     let result;
     if (target.has(key)) {
       result = target.delete(key);
-      trigger(target, key, "DELETE");
+      trigger(target, key, "DELETE", value);
     }
     return result;
   },
@@ -177,7 +221,6 @@ function reactive(obj) {
 
   let proxy;
   if (obj instanceof Set || obj instanceof Map) {
-    console.log("!");
     proxy = createNativeDSReactive(obj);
   } else proxy = createReactive(obj);
 
@@ -245,13 +288,14 @@ function trigger(target, key, type, newVal) {
   });
 }
 
-const s = new Set([1, 2, 3]);
-const p = reactive(s);
+const m = new Map();
+const p1 = reactive(m);
+const p2 = reactive(new Map());
+
+p1.set("p2", p2);
 
 callEffect(() => {
-  console.log(p.size, "T-T");
+  console.log("size:", p1.get("p2").size);
 });
 
-p.add(4);
-p.delete(1);
-// console.log(p);
+m.get("p2").set("foo", 1);
