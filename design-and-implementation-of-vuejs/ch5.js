@@ -132,11 +132,55 @@ function createReactive(o, isShallow = false, isReadonly = false) {
   });
 }
 
+const mutableInstrumentations = {
+  add: function (key) {
+    const target = this[ORIGIN];
+    let result;
+    if (!target.has(key)) {
+      result = target.add(key);
+      trigger(target, key, "ADD");
+    }
+    return result;
+  },
+  delete: function (key) {
+    const target = this[ORIGIN];
+    let result;
+    if (target.has(key)) {
+      result = target.delete(key);
+      trigger(target, key, "DELETE");
+    }
+    return result;
+  },
+};
+
+function createNativeDSReactive(o, isShallow = false, isReadonly = false) {
+  return new Proxy(o, {
+    get(target, key, receiver) {
+      // console.log("---get---", key, target, key === ITERATE_KEY, key === ORIGIN);
+      if (key === ORIGIN) return target;
+      if (key === "size") {
+        track(target, ITERATE_KEY);
+
+        // NOTE: 两者似乎并没有区别
+        return Reflect.get(target, key, target);
+        // return target[key];
+      }
+
+      return mutableInstrumentations[key];
+    },
+  });
+}
+
 function reactive(obj) {
   const existionProxy = reactiveMap.get(obj);
   if (existionProxy) return existionProxy;
 
-  const proxy = createReactive(obj);
+  let proxy;
+  if (obj instanceof Set || obj instanceof Map) {
+    console.log("!");
+    proxy = createNativeDSReactive(obj);
+  } else proxy = createReactive(obj);
+
   reactiveMap.set(obj, proxy);
   return proxy;
 }
@@ -153,7 +197,6 @@ function shallowReadonly(o) {
 }
 
 function track(target, key) {
-  // console.log("track", key);
   if (!activeEffect || skipTrack) return target[key];
   let depsMap = bucket.get(target);
   if (!depsMap) {
@@ -169,6 +212,7 @@ function track(target, key) {
   activeEffect.deps.push(deps);
 }
 function trigger(target, key, type, newVal) {
+  // console.log("---", target, key, "---");
   const depsMap = bucket.get(target);
   if (!depsMap) return;
   const deps = depsMap.get(key);
@@ -178,7 +222,6 @@ function trigger(target, key, type, newVal) {
   const effectsToRun = new Set(deps);
 
   if (Array.isArray(target) && key === "length") {
-    console.log(key, newVal);
     depsMap.forEach((indexDeps, indexKey) => {
       if (Number(indexKey) >= newVal) {
         indexDeps.forEach((f) => effectsToRun.add(f));
@@ -202,23 +245,13 @@ function trigger(target, key, type, newVal) {
   });
 }
 
-const obj = { a: 1 };
-const arr = reactive([obj, { b: 90 }, 3, 4, 6]);
-
-// callEffect(() => {
-//   // console.log("长度变了", arr.length);
-//   console.log("hhhh", arr[4]);
-// });
-
-// console.log(arr.includes(obj));
-// console.log(arr.indexOf(arr[0]));
-// console.log(arr.lastIndexOf(obj));
+const s = new Set([1, 2, 3]);
+const p = reactive(s);
 
 callEffect(() => {
-  arr.push(1);
-});
-callEffect(() => {
-  arr.push(1);
+  console.log(p.size, "T-T");
 });
 
-console.log(arr);
+p.add(4);
+p.delete(1);
+// console.log(p);
