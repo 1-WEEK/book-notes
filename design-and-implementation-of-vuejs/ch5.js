@@ -24,7 +24,7 @@ function cleanup(effect) {
   effect.deps.length = 0;
 }
 
-function callEffect(fn, options = {}) {
+export function callEffect(fn, options = {}) {
   const effect = () => {
     cleanup(effect);
     activeEffect = effect;
@@ -215,7 +215,7 @@ function createNativeDSReactive(o, isShallow = false, isReadonly = false) {
   });
 }
 
-function reactive(obj) {
+export function reactive(obj) {
   const existionProxy = reactiveMap.get(obj);
   if (existionProxy) return existionProxy;
 
@@ -227,15 +227,15 @@ function reactive(obj) {
   reactiveMap.set(obj, proxy);
   return proxy;
 }
-function shallowReactive(o) {
+export function shallowReactive(o) {
   return createReactive(o, true);
 }
 
-function readonly(o) {
+export function readonly(o) {
   return createReactive(o, false, true);
 }
 
-function shallowReadonly(o) {
+export function shallowReadonly(o) {
   return createReactive(o, true, true);
 }
 
@@ -287,15 +287,3 @@ function trigger(target, key, type, newVal) {
     else f();
   });
 }
-
-const m = new Map();
-const p1 = reactive(m);
-const p2 = reactive(new Map());
-
-p1.set("p2", p2);
-
-callEffect(() => {
-  console.log("size:", p1.get("p2").size);
-});
-
-m.get("p2").set("foo", 1);
