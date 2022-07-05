@@ -11,6 +11,9 @@ const utils = {
   isReactive(v) {
     return !!v[ORIGIN];
   },
+  isMap(o) {
+    return Object.prototype.toString.call(o) === "[object Map]";
+  },
 };
 
 let activeEffect;
@@ -172,7 +175,7 @@ const mutableInstrumentations = {
     } else {
       const oldValue = target.get(key);
       if (!utils.isSame(oldValue, value)) {
-        trigger(target, key, "SET");
+        trigger(target, key, "SET", value);
       }
     }
     return result;
@@ -191,16 +194,24 @@ const mutableInstrumentations = {
     let result;
     if (target.has(key)) {
       result = target.delete(key);
-      trigger(target, key, "DELETE", value);
+      trigger(target, key, "DELETE");
     }
     return result;
+  },
+  forEach: function (callback, thisArgs) {
+    const wrap = (v) => (typeof v === "object" ? reactive(v) : v);
+    const target = this[ORIGIN];
+    track(target, ITERATE_KEY);
+    target.forEach((value, key) => {
+      callback.call(this.thisArgs, wrap(value), wrap(key), this);
+    });
   },
 };
 
 function createNativeDSReactive(o, isShallow = false, isReadonly = false) {
   return new Proxy(o, {
     get(target, key, receiver) {
-      // console.log("---get---", key, target, key === ITERATE_KEY, key === ORIGIN);
+      // console.info("---get---", key, target, key === ITERATE_KEY, key === ORIGIN);
       if (key === ORIGIN) return target;
       if (key === "size") {
         track(target, ITERATE_KEY);
@@ -255,7 +266,7 @@ function track(target, key) {
   activeEffect.deps.push(deps);
 }
 function trigger(target, key, type, newVal) {
-  // console.log("---", target, key, "---");
+  // console.info("---", target, key, "---");
   const depsMap = bucket.get(target);
   if (!depsMap) return;
   const deps = depsMap.get(key);
@@ -277,7 +288,11 @@ function trigger(target, key, type, newVal) {
     lenghtDeps?.forEach?.((f) => effectsToRun.add(f));
   }
 
-  if (type === "ADD" || type === "DELETE") {
+  if (
+    type === "ADD" ||
+    type === "DELETE" ||
+    (type === "SET" && utils.isMap(target))
+  ) {
     keyDeps?.forEach?.((f) => effectsToRun.add(f));
   }
   effectsToRun.forEach((f) => {
