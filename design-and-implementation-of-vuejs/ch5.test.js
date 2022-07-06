@@ -164,4 +164,55 @@ describe("ch5", () => {
 
     restoreConsole();
   });
+
+  it("values", () => {
+    const restoreConsole = mockConsole();
+    jest.spyOn(console, "log");
+    const v = new Map([
+      [{ a: "key1" }, { a: "value1" }],
+      [{ a: "key2" }, { a: "value2" }],
+    ]);
+
+    const p = reactive(v);
+
+    callEffect(() => {
+      for (const value of p.values()) {
+        expect(utils.isReactive(value)).toBe(true);
+        console.log(value);
+      }
+    });
+
+    const a = { a: "key3" };
+    const b = { a: "value3" };
+    p.set(a, b);
+    expect(console.log).nthCalledWith(5, b);
+
+    restoreConsole();
+  });
+
+  it("keys", () => {
+    const restoreConsole = mockConsole();
+    jest.spyOn(console, "log");
+    const a = { a: "key2" };
+    const v = new Map([
+      [{ a: "key1" }, { a: "value1" }],
+      [a, { a: "value2" }],
+    ]);
+    const p = reactive(v);
+
+    callEffect(() => {
+      for (const key of p.keys()) {
+        expect(utils.isReactive(key)).toBe(true);
+        console.log(key);
+      }
+    });
+
+    const b = { a: "value3" };
+    p.set(a, b);
+    expect(console.log).toBeCalledTimes(2);
+    p.set({ b: 123 }, b);
+    expect(console.log).toBeCalledTimes(5);
+
+    restoreConsole();
+  });
 });

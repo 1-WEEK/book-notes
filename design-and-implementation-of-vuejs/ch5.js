@@ -1,4 +1,5 @@
 const ITERATE_KEY = Symbol();
+const MAP_KEY_ITERATE_KEY = Symbol();
 const ORIGIN = Symbol();
 
 export const utils = {
@@ -208,6 +209,8 @@ const mutableInstrumentations = {
   },
   [Symbol.iterator]: iterationMethod,
   entries: iterationMethod,
+  values: valueIterationMethod,
+  keys: keyIterationMethod,
 };
 
 function iterationMethod() {
@@ -220,6 +223,44 @@ function iterationMethod() {
       const { value, done } = itr.next();
       return {
         value: value ? [wrap(value[0]), wrap(value[1])] : value,
+        done,
+      };
+    },
+    [Symbol.iterator]() {
+      return this;
+    },
+  };
+}
+
+function valueIterationMethod() {
+  const wrap = (v) => (typeof v === "object" ? reactive(v) : v);
+  const target = this[ORIGIN];
+  const itr = target.values();
+  track(target, ITERATE_KEY);
+  return {
+    next() {
+      const { value, done } = itr.next();
+      return {
+        value: value ? wrap(value) : value,
+        done,
+      };
+    },
+    [Symbol.iterator]() {
+      return this;
+    },
+  };
+}
+
+function keyIterationMethod() {
+  const wrap = (v) => (typeof v === "object" ? reactive(v) : v);
+  const target = this[ORIGIN];
+  const itr = target.keys();
+  track(target, MAP_KEY_ITERATE_KEY);
+  return {
+    next() {
+      const { value, done } = itr.next();
+      return {
+        value: value ? wrap(value) : value,
         done,
       };
     },
@@ -292,6 +333,7 @@ function trigger(target, key, type, newVal) {
   if (!depsMap) return;
   const deps = depsMap.get(key);
   const keyDeps = depsMap.get(ITERATE_KEY);
+  const mapKeyDeps = depsMap.get(MAP_KEY_ITERATE_KEY);
 
   // NOTE: 避免无限循环
   const effectsToRun = new Set(deps);
@@ -312,10 +354,16 @@ function trigger(target, key, type, newVal) {
   if (
     type === "ADD" ||
     type === "DELETE" ||
-    (type === "SET" && utils.isMap(target))
+    (type === "SET" && utils.isMap(target)) // May & Set
   ) {
     keyDeps?.forEach?.((f) => effectsToRun.add(f));
   }
+
+  // Map.keys
+  if ((type === "ADD" || type === "DELETE") && utils.isMap(target)) {
+    mapKeyDeps?.forEach?.((f) => effectsToRun.add(f));
+  }
+
   effectsToRun.forEach((f) => {
     if (f === activeEffect) return;
 
