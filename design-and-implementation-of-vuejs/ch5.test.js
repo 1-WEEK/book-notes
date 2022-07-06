@@ -1,5 +1,5 @@
 import mockConsole from "jest-mock-console";
-import { callEffect, reactive } from "./ch5";
+import { callEffect, reactive, utils } from "./ch5";
 
 describe("ch5", () => {
   it("原对象数据污染", () => {
@@ -87,6 +87,81 @@ describe("ch5", () => {
 
     p.set(foo, 2);
     expect(console.log).nthCalledWith(2, foo, 2);
+    restoreConsole();
+  });
+
+  it("触发迭代器", () => {
+    const restoreConsole = mockConsole();
+    jest.spyOn(console, "log");
+    const v = new Map([
+      ["key1", "value1"],
+      ["key2", "value2"],
+    ]);
+
+    const p = reactive(v);
+
+    callEffect(() => {
+      for (const [key, value] of p) {
+        console.log(key, value);
+      }
+    });
+    expect(console.log).nthCalledWith(1, "key1", "value1");
+    expect(console.log).nthCalledWith(2, "key2", "value2");
+    p.set("key3", "value3");
+    expect(console.log).nthCalledWith(5, "key3", "value3");
+
+    restoreConsole();
+  });
+
+  it("迭代器传递响应数据", () => {
+    const restoreConsole = mockConsole();
+    jest.spyOn(console, "log");
+    const v = new Map([
+      [{ a: "key1" }, { a: "value1" }],
+      [{ a: "key2" }, { a: "value2" }],
+    ]);
+
+    const p = reactive(v);
+
+    callEffect(() => {
+      for (const [key, value] of p) {
+        expect(utils.isReactive(key)).toBe(true);
+        expect(utils.isReactive(value)).toBe(true);
+        console.log(key, value);
+      }
+    });
+
+    const a = { a: "key3" };
+    const b = { a: "value3" };
+    p.set(a, b);
+    expect(console.log).nthCalledWith(5, a, b);
+
+    restoreConsole();
+  });
+
+  it("entries", () => {
+    const restoreConsole = mockConsole();
+    jest.spyOn(console, "log");
+    const v = new Map([
+      [{ a: "key1" }, { a: "value1" }],
+      [{ a: "key2" }, { a: "value2" }],
+    ]);
+
+    const p = reactive(v);
+
+    callEffect(() => {
+      for (const [key, value] of p.entries()) {
+        expect(utils.isReactive(key)).toBe(true);
+        expect(utils.isReactive(value)).toBe(true);
+        console.log(key, value);
+      }
+    });
+
+    const a = { a: "key3" };
+    const b = { a: "value3" };
+    p.set(a, b);
+    expect(console.log).nthCalledWith(5, a, b);
+
     restoreConsole();
   });
 });

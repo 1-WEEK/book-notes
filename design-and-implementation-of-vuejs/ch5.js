@@ -1,7 +1,7 @@
 const ITERATE_KEY = Symbol();
 const ORIGIN = Symbol();
 
-const utils = {
+export const utils = {
   isSame(oldVal, newVal) {
     return oldVal !== newVal || (oldVal !== oldVal && newVal !== newVal);
   },
@@ -206,7 +206,28 @@ const mutableInstrumentations = {
       callback.call(this.thisArgs, wrap(value), wrap(key), this);
     });
   },
+  [Symbol.iterator]: iterationMethod,
+  entries: iterationMethod,
 };
+
+function iterationMethod() {
+  const wrap = (v) => (typeof v === "object" ? reactive(v) : v);
+  const target = this[ORIGIN];
+  const itr = target[Symbol.iterator]();
+  track(target, ITERATE_KEY);
+  return {
+    next() {
+      const { value, done } = itr.next();
+      return {
+        value: value ? [wrap(value[0]), wrap(value[1])] : value,
+        done,
+      };
+    },
+    [Symbol.iterator]() {
+      return this;
+    },
+  };
+}
 
 function createNativeDSReactive(o, isShallow = false, isReadonly = false) {
   return new Proxy(o, {
