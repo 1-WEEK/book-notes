@@ -4,7 +4,7 @@ const ORIGIN = Symbol();
 
 export const utils = {
   isSame(oldVal, newVal) {
-    return oldVal !== newVal || (oldVal !== oldVal && newVal !== newVal);
+    return oldVal === newVal || (oldVal !== oldVal && newVal !== newVal);
   },
   getOrigin(v) {
     return v[ORIGIN] || v;
@@ -170,11 +170,11 @@ const mutableInstrumentations = {
     const target = this[ORIGIN];
     const had = target.has(key);
 
+    const oldValue = target.get(key);
     const result = target.set(key, utils.getOrigin(value));
     if (!had) {
       trigger(target, key, "ADD");
     } else {
-      const oldValue = target.get(key);
       if (!utils.isSame(oldValue, value)) {
         trigger(target, key, "SET", value);
       }
