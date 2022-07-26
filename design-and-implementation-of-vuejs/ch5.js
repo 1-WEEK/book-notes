@@ -1,21 +1,5 @@
-const ITERATE_KEY = Symbol();
-const MAP_KEY_ITERATE_KEY = Symbol();
-const ORIGIN = Symbol();
-
-export const utils = {
-  isSame(oldVal, newVal) {
-    return oldVal === newVal || (oldVal !== oldVal && newVal !== newVal);
-  },
-  getOrigin(v) {
-    return v[ORIGIN] || v;
-  },
-  isReactive(v) {
-    return !!v[ORIGIN];
-  },
-  isMap(o) {
-    return Object.prototype.toString.call(o) === "[object Map]";
-  },
-};
+import { ORIGIN, ITERATE_KEY, MAP_KEY_ITERATE_KEY } from "./_enums";
+import * as utils from "./_utils";
 
 let activeEffect;
 let skipTrack = false;

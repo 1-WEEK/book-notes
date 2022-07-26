@@ -1,5 +1,6 @@
 import mockConsole from "jest-mock-console";
-import { callEffect, reactive, utils } from "./ch5";
+import { callEffect, reactive } from "./ch5";
+import * as utils from "./_utils";
 
 describe("ch5", () => {
   it("原对象数据污染", () => {
