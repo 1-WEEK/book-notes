@@ -1,5 +1,6 @@
 import { reactive, callEffect } from "./ch5";
 import { IS_REF } from "./_enums";
+import { isRef } from "./_utils";
 
 /**
  * @template T
@@ -40,7 +41,21 @@ export function toRefs(obj) {
 }
 
 export function proxyRefs(obj) {
-  return obj
+  return new Proxy(obj, {
+    get(target, key, receiver) {
+      if (isRef(target[key])) {
+        return target[key].value;
+      }
+      return Reflect.get(target, key, receiver);
+    },
+    set(target, key, value, reactive) {
+      if (isRef(target[key])) {
+        target[key].value = value;
+        return true;
+      }
+      return Reflect.set(target, key, value, receiver);
+    },
+  });
 }
 
 export { callEffect, reactive };

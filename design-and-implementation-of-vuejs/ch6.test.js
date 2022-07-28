@@ -58,11 +58,19 @@ describe("ch6", () => {
   it("unref", () => {
     const restoreConsole = mockConsole();
     jest.spyOn(console, "log");
+    const obj = reactive({
+      a: 1,
+      b: 2,
+    });
+    const newObj = proxyRefs({ ...toRefs(obj) });
 
     callEffect(() => {
-      console.log();
+      console.log(newObj.a);
     });
-    expect(console.log).nthCalledWith(1, );
+    expect(console.log).nthCalledWith(1, 1);
+    newObj.b = 123;
+    newObj.a = 3;
+    expect(console.log).nthCalledWith(2, 3);
 
     restoreConsole();
   });
